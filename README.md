@@ -1,105 +1,128 @@
-# Control Usage PasarGuard
+# Control Usage PasarGuard — کنترل اتصال کاربران حذف‌شده
 
-Unofficial installation helper for the **PasarGuard UserConnTracker patch for Xray-core**.
+ابزار **غیررسمی نصب و بازگشت** برای پچ `UserConnTracker` تیم PasarGuard روی Xray-core.
 
-> The patch is developed by the PasarGuard team, not this repository. This project helps deploy their prebuilt Xray binaries and revert the change if needed. It is not an official Xray-core release or a complete traffic-quota/billing solution.
+> **اعتبار اثر:** پچ اصلی متعلق به تیم PasarGuard است؛ این مخزن فقط نصب نسخه‌های آمادهٔ آن را ساده می‌کند. این پروژه محصول رسمی PasarGuard یا Xray-core نیست و به‌تنهایی جایگزین کنترل حجم و صورتحساب کاربران نمی‌شود.
 
-## What problem does it address?
+## این پچ چه مشکلی را حل می‌کند؟
 
-When the central management panel removes a user through the Xray gRPC API, previously established sessions may remain connected and continue transferring data. PasarGuard proposed an Xray-core change to track and close those connections when a user is removed.
+در برخی نسخه‌ها و شرایط، وقتی پنل از طریق API مبتنی بر **gRPC** کاربری را از Xray حذف می‌کند، اتصال‌هایی که **از قبل برقرار شده‌اند** ممکن است همچنان فعال بمانند. در نتیجه کاربر حذف‌شده می‌تواند تا پایان آن اتصال به مصرف ترافیک ادامه دهد؛ این موضوع می‌تواند باعث مصرف غیرمنتظرهٔ ترافیک شود.
 
-- [Original upstream proposal: Xray-core PR #5844](https://github.com/XTLS/Xray-core/pull/5844)
-- [Patch source branch](https://github.com/ImMohammad20000/Xray-core/tree/UserConnTracker)
+تیم PasarGuard برای ردیابی اتصال‌ها و بستن آن‌ها هنگام حذف کاربر، اصلاحیه‌ای برای هستهٔ Xray پیشنهاد کرده است:
 
-The upstream PR was **open and unmerged when this README was written (October 2026)**. Check it again before using a third-party build.
+- [Pull Request شمارهٔ 5844 در پروژهٔ Xray-core](https://github.com/XTLS/Xray-core/pull/5844)
+- [کد منبع پچ در شاخهٔ UserConnTracker](https://github.com/ImMohammad20000/Xray-core/tree/UserConnTracker)
 
-## Where should it be installed?
+هنگام تدوین این راهنما (اکتبر ۲۰۲۶)، این PR هنوز ادغام نشده بود؛ قبل از استفاده، وضعیت فعلی آن و نسخهٔ Xray را بررسی کنید.
 
-**On each PasarGuard node running Xray**, not just on the central panel. The panel sends gRPC requests, but the Xray process that maintains user sessions runs on the node.
+## پچ روی پنل اصلی نصب می‌شود یا نود؟
 
-If you have Germany and Turkey nodes, apply and test the patch **one node at a time**, to avoid interrupting both locations at once.
+**روی هر نود PasarGuard که Xray را اجرا می‌کند.** پنل اصلی مدیریت کاربران را انجام می‌دهد، اما اتصال فعال کاربران در پردازش Xray روی نود نگهداری می‌شود. بنابراین نصب فقط روی پنل مرکزی، مشکل نودهای جداگانه را حل نمی‌کند.
 
-## Supported environment and prerequisites
+اگر چند نود دارید، نصب و آزمایش را **یکی‌یکی** انجام دهید تا هم‌زمان همهٔ موقعیت‌ها قطع نشوند.
 
-- PasarGuard node with the `pg-node` management command
-- `/opt/pg-node/.env` on the node host
-- The custom executable location `/var/lib/pg-node/xray-core/xray` supported by your node
-- Linux `amd64` or `arm64`; provided archives were reportedly built for **Alpine Linux**
-- root access and common tools: curl, unzip, sha256sum, python3
-- An up-to-date backup and maintenance window
+## پیش‌نیازها و سازگاری
 
-The binaries should be compatible with the **runtime inside the node container**, not just the host's CPU architecture. Verify that the host directory is mounted into the node container before restarting.
+- نود PasarGuard با دستور مدیریتی `pg-node`
+- فایل تنظیمات نود در `/opt/pg-node/.env`
+- پشتیبانی نود از مسیر اجرایی سفارشی `/var/lib/pg-node/xray-core/xray`
+- معماری `amd64` یا `arm64`
+- دسترسی `root` و ابزارهای متداول مانند `curl`، `unzip`، `sha256sum` و `python3`
+- بکاپ معتبر و زمان مناسب برای ری‌استارت نود
 
-## Files
+**مهم:** فایل‌های ارائه‌شده برای **Alpine Linux** کامپایل شده‌اند. سازگاری آن‌ها با **محیط اجرای Xray در کانتینر نود** باید بررسی شود؛ یکسان‌بودن معماری CPU سرور به‌تنهایی کافی نیست. همچنین باید مسیر سفارشی برای کانتینر نود قابل‌دسترسی باشد.
 
-| File | Purpose |
+## فایل‌های پروژه
+
+| فایل | کاربرد |
 |---|---|
-| `install.sh` | Selects architecture, downloads the relevant ZIP, verifies checksum, creates a backup, installs Xray and configures `XRAY_EXECUTABLE_PATH` |
-| `rollback.sh` | Restores the previous environment and optional custom Xray executable |
-| `binaries/xray-amd64.zip` | Third-party Alpine/amd64 Xray build (must be added separately) |
-| `binaries/xray-arm64.zip` | Third-party Alpine/arm64 Xray build (must be added separately) |
+| `install.sh` | شناسایی معماری، دانلود فایل مناسب، بررسی هش، بکاپ‌گیری، نصب Xray و تنظیم مسیر آن |
+| `rollback.sh` | برگرداندن تنظیمات قبلی و در صورت وجود، فایل اجرایی سفارشی قبلی |
+| `binaries/xray-amd64.zip` | باینری ارائه‌شده برای `amd64` |
+| `binaries/xray-arm64.zip` | باینری ارائه‌شده برای `arm64` |
 
-**The binaries are not included until explicitly uploaded. Running the installer before that will fail safely.**
+**برای استفاده از نصب‌کننده باید فایل‌های ZIP در پوشهٔ `binaries/` همین مخزن موجود باشند.** اگر فایل‌ها آپلود نشده باشند، دانلود و نصب انجام نمی‌شود. کاربران نهایی نیازی به آپلود دستی ZIP در سرور ندارند: نصب‌کننده فایل مناسب را از GitHub می‌گیرد.
 
-## Uploaded archive SHA-256 hashes
-
-These match the two ZIP files originally provided for this project; they verify download integrity **only**, not publisher authenticity:
+## هش فایل‌های ارائه‌شده (SHA-256)
 
 ```text
 711d850deb8b71b7e2dbe9ae7dc8fdf266a6c26065d25e8fdd25a86a9271bcbb  binaries/xray-amd64.zip
 271ded5626b854b3ea4da1ded4ce062a392f4e5381581d67ee39de325fe150db  binaries/xray-arm64.zip
 ```
 
-Ensure the files originate from the PasarGuard team, review their provenance, and check redistribution rights before placing them in a **public** repository.
+این هش‌ها فقط نشان می‌دهند فایل دانلودشده با **فایل‌های ارائه‌شده برای همین پروژه** برابر است. این بررسی به‌تنهایی اصالت انتشار یا امنیت باینری شخص ثالث را تضمین نمی‌کند. پیش از انتشار عمومی، منبع فایل‌ها و حقوق بازنشرشان را بررسی کنید.
 
-## Installation
+## آموزش نصب روی هر نود
 
-First upload both original ZIPs into `binaries/` in this repository. Review the script and understand what it will change.
+پس از اطمینان از وجود فایل‌های ZIP در مخزن و بررسی کد اسکریپت، به **سرور نود PasarGuard** با دسترسی `root` متصل شوید.
 
-On **each PasarGuard node**, use:
+### مرحلهٔ ۱ — دانلود و اجرای نصب‌کننده
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/amiradineh74/control-usage-pasarguard/main/install.sh -o /root/control-usage-install.sh
 bash /root/control-usage-install.sh
 ```
 
-The installer performs the following steps:
+اسکریپت به‌ترتیب:
 
-1. Detects `amd64` or `arm64`.
-2. Downloads the selected ZIP over HTTPS.
-3. Verifies its pinned SHA-256 hash and that it contains a single expected ELF executable.
-4. Backs up `/opt/pg-node/.env` and any existing custom executable under `/var/lib/pg-node/xray-core/backups/`.
-5. Installs the executable at `/var/lib/pg-node/xray-core/xray`.
-6. Sets `XRAY_EXECUTABLE_PATH=/var/lib/pg-node/xray-core/xray` in the node env.
+1. معماری سرور (`amd64` یا `arm64`) را شناسایی می‌کند.
+2. فایل ZIP مربوط به همان معماری را **مستقیم از GitHub** دریافت می‌کند.
+3. هش `SHA-256` و ساختار فایل اجرایی را بررسی می‌کند.
+4. از `/opt/pg-node/.env` و فایل Xray سفارشی قبلی (در صورت وجود) بکاپ می‌گیرد.
+5. فایل Xray جدید را در `/var/lib/pg-node/xray-core/xray` قرار می‌دهد.
+6. این مقدار را در فایل `.env` ثبت می‌کند:
 
-The installer **does not restart the node**. Review the changes and, during a maintenance window, run:
+```dotenv
+XRAY_EXECUTABLE_PATH=/var/lib/pg-node/xray-core/xray
+```
+
+### مرحلهٔ ۲ — فعال‌سازی
+
+**اسکریپت عمداً نود را خودکار ری‌استارت نمی‌کند.** پس از بررسی نتیجهٔ نصب و اطمینان از سازگاری، در زمان مناسب اجرا کنید:
 
 ```bash
 pg-node restart
 ```
 
-Verify that Xray starts, clients can reconnect, and a controlled **test user** with an active session is disconnected when removed through gRPC. Successful startup alone does not verify the behavior of the patch.
+ری‌استارت می‌تواند اتصال کاربران فعال همان نود را موقتاً قطع کند.
 
-## Rolling back
+### مرحلهٔ ۳ — بررسی عملکرد
 
-On the same node, if there is a problem:
+بعد از راه‌اندازی مجدد:
+
+- مطمئن شوید نود بدون خطا اجرا می‌شود و کاربران عادی می‌توانند متصل شوند.
+- با یک **کاربر آزمایشی** ابتدا اتصال برقرار کنید، سپس کاربر را از طریق پنل/gRPC حذف کنید.
+- بررسی کنید اتصال فعال همان کاربر واقعاً پایان یافته است.
+
+**فعال بودن سرویس یا نمایش نسخهٔ Xray به‌تنهایی ثابت نمی‌کند پچ مشکل را برطرف کرده است.**
+
+## بازگشت به نسخهٔ قبلی (Rollback)
+
+اگر Xray یا نود با مشکل روبه‌رو شد، روی همان نود:
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/amiradineh74/control-usage-pasarguard/main/rollback.sh -o /root/control-usage-rollback.sh
 bash /root/control-usage-rollback.sh
+```
+
+این اسکریپت آخرین تنظیمات ذخیره‌شده و فایل Xray سفارشی قبلی را (در صورت وجود) بازمی‌گرداند. سپس در زمان مناسب:
+
+```bash
 pg-node restart
 ```
 
-The rollback uses the latest backup created by the installer. Backed-up environment files may contain credentials: never commit or publicly share them.
+فایل‌های بکاپ در `/var/lib/pg-node/xray-core/backups/` قرار دارند. ممکن است فایل `.env` شامل اطلاعات حساس باشد؛ **هرگز بکاپ‌ها را در GitHub منتشر نکنید.**
 
-## Limitations
+## محدودیت‌ها و نکات مهم
 
-- The scripts install prebuilt binaries; they **do not compile or modify Xray source**.
-- This does not patch Paqet, the central management panel, or third-party proxies.
-- Binary builds may become outdated or incompatible with subsequent node versions.
-- Always test in staging if possible, monitor real user traffic and have an alternate working node available.
-- Do not claim this installer is authored or endorsed by the PasarGuard team.
+- این پروژه فقط **باینری از پیش کامپایل‌شده** را نصب می‌کند؛ پچ را از کد منبع نمی‌سازد.
+- ابزار حاضر تنظیمات پنل اصلی، Paqet یا تونل‌های دیگر را تغییر نمی‌دهد.
+- در نسخه‌های جدید PasarGuard یا Xray ممکن است فایل پچ قدیمی ناسازگار شود.
+- تا حد امکان ابتدا روی محیط آزمایشی بررسی کنید و هنگام تغییر نود عملیاتی، مسیر جایگزین اتصال کاربران را حفظ کنید.
+- موفقیت نصب به معنی تضمین کنترل سهمیه یا قطع فوری همهٔ شکل‌های اتصال نیست؛ نتیجه باید آزمایش شود.
 
-## Credits
+## منبع و قدردانی
 
-Patch author: **PasarGuard team** — see [XTLS/Xray-core#5844](https://github.com/XTLS/Xray-core/pull/5844). This repo packages an independent helper to install third-party builds. No redistribution license for third-party ZIP files is asserted here.
+ایده و پیاده‌سازی پچ: **تیم PasarGuard** — [XTLS/Xray-core PR #5844](https://github.com/XTLS/Xray-core/pull/5844).
+
+این مخزن فقط یک ابزار نصب و بازگشت مستقل است و تأیید رسمی یا اجازهٔ بازنشر باینری‌های اشخاص ثالث را ادعا نمی‌کند.
