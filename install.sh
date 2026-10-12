@@ -75,5 +75,35 @@ PY
 printf '%s\n' "$BACKUP" > "$DEST/last-backup-path"
 chmod 600 "$DEST/last-backup-path"
 echo "[OK] Binary installed; previous config saved to $BACKUP"
-echo "Node NOT restarted. Inspect the env and verify runtime compatibility first."
-echo "To activate during maintenance: pg-node restart"
+echo
+echo "============================================================"
+echo "IMPORTANT: Installation completed, but the patched Xray is"
+echo "NOT active until the PasarGuard node is restarted."
+echo "Restarting the node may briefly disconnect active users."
+echo "============================================================"
+echo
+if [[ ! -t 0 ]]; then
+  echo "No interactive terminal available; restart skipped."
+  echo "When ready, run: pg-node restart"
+  exit 0
+fi
+
+read -r -p "Restart PasarGuard node now? [yes/no]: " RESTART_CHOICE
+case "${RESTART_CHOICE,,}" in
+  yes|y)
+    echo "Restarting PasarGuard node..."
+    if pg-node restart; then
+      echo "[OK] Restart command completed. Verify Xray and client connections."
+    else
+      echo "[ERROR] Node restart failed. Check node logs and use rollback.sh if necessary." >&2
+      exit 1
+    fi
+    ;;
+  no|n|"")
+    echo "Restart skipped. Patch will NOT be active until you run: pg-node restart"
+    ;;
+  *)
+    echo "Unrecognized answer; restart skipped."
+    echo "Patch will NOT be active until you run: pg-node restart"
+    ;;
+esac
